@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SecureFace-RX Web</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">SecureFace <span>-RX Web</span></div>
+    <div class="privacy-note">모든 처리는 이 브라우저 안에서만 · 영상은 전송되지 않음</div>
+  </header>
+
+  <main class="page">
+    <section class="controls">
+      <button type="button" class="btn primary" id="startCamera">카메라 시작</button>
+      <label class="btn" for="videoFile">영상 파일로 테스트</label>
+      <input type="file" id="videoFile" accept="video/*" hidden>
+      <button type="button" class="btn" id="stop" disabled>정지</button>
+      <label class="check"><input type="checkbox" id="showBoxes" checked> 얼굴 상자·라벨 표시</label>
+    </section>
+
+    <section class="stats">
+      <div class="stat"><div class="label">상태</div><div class="value" id="statState">대기</div></div>
+      <div class="stat"><div class="label">탐지된 얼굴</div><div class="value" id="statFaces">0</div></div>
+      <div class="stat"><div class="label">처리 속도</div><div class="value" id="statFps">-</div></div>
+      <div class="stat"><div class="label">탐지 시간</div><div class="value" id="statMs">-</div></div>
+      <div class="stat"><div class="label">처리 장치</div><div class="value" id="statBackend">-</div></div>
+    </section>
+
+    <section class="stage">
+      <canvas id="view" aria-label="익명화된 영상"></canvas>
+      <div class="placeholder" id="placeholder">
+        <b>카메라 시작</b>을 누르거나 <b>영상 파일</b>을 선택하세요.<br>
+        얼굴은 화면에 그려지기 전에 블러 처리됩니다.
+      </div>
+    </section>
+    <p class="error" id="error" role="alert"></p>
+  </main>
+
+  <!-- 원본 영상은 화면에 표시하지 않는다. 캔버스에는 익명화된 프레임만 그린다. -->
+  <video id="source" muted playsinline hidden></video>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

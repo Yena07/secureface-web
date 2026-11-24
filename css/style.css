@@ -1,0 +1,52 @@
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  background: #F1F5F9;
+  color: #1E293B;
+}
+button, input, select { font: inherit; }
+
+.topbar {
+  height: 56px; padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: #fff; border-bottom: 1px solid #E2E8F0;
+}
+.brand { font-size: 17px; font-weight: 700; color: #3B82F6; }
+.brand span { color: #1E293B; font-weight: 400; }
+.privacy-note { font-size: 12px; color: #15803D; background: #F0FDF4; padding: 5px 10px; border-radius: 999px; }
+
+.page { padding: 20px 24px; max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.btn {
+  display: inline-flex; align-items: center; padding: 9px 16px; border-radius: 8px;
+  border: 1px solid #DBE4F0; background: #fff; color: #334155; font-weight: 600; font-size: 14px; cursor: pointer;
+}
+.btn.primary { background: #3B82F6; border-color: #3B82F6; color: #fff; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.check { display: flex; align-items: center; gap: 6px; margin-left: 8px; font-size: 14px; color: #475569; cursor: pointer; }
+
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.stat { background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; padding: 12px 16px; }
+.stat .label { font-size: 11px; color: #64748B; }
+.stat .value { font-size: 20px; font-weight: 700; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.stage {
+  position: relative; background: #0F172A; border-radius: 12px; overflow: hidden;
+  aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center;
+}
+#view { width: 100%; height: 100%; object-fit: contain; display: block; }
+.placeholder {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  text-align: center; color: #94A3B8; font-size: 14px; line-height: 1.8; padding: 16px;
+}
+.placeholder[hidden] { display: none; }
+.error { color: #B91C1C; font-size: 14px; min-height: 1em; margin: 0; }
+
+@media (max-width: 760px) {
+  .topbar { padding: 0 16px; height: auto; min-height: 56px; flex-wrap: wrap; padding-top: 8px; padding-bottom: 8px; }
+  .page { padding: 16px; }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .check { margin-left: 0; }
+}
