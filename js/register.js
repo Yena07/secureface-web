@@ -3,6 +3,7 @@ import { createDetector } from './detector.js';
 import { createRecognizer } from './recognizer.js';
 import { openCamera } from './camera.js';
 import { people } from './db.js';
+import { FLOORS, floorsText } from './access.js';
 
 const $ = (id) => document.getElementById(id);
 const video = $('source');
@@ -17,7 +18,17 @@ const SAMPLE_GAP_MS = 350;
 let detector = null, recognizer = null, closeCamera = null;
 let running = false, busy = false, lastSampleAt = 0;
 let step = 0, firstSide = 0, samples = [], stepCount = 0, faceBox = null;
-let name = '', group = '허가';
+let name = '', group = '허가', floors = [...FLOORS];
+
+// 출입 허가 층 체크박스 (기본: 전체 층)
+for (const f of FLOORS) {
+  const label = document.createElement('label');
+  const box = document.createElement('input');
+  box.type = 'checkbox'; box.value = f; box.checked = true;
+  label.append(box, ` ${f}층`);
+  $('floorChecks').append(label);
+}
+const checkedFloors = () => [...document.querySelectorAll('#floorChecks input:checked')].map((b) => Number(b.value));
 
 /** 고개 방향: 코끝이 두 눈 가운데에서 얼마나 벗어났는지 (눈 사이 거리 기준). 정면 ≈ 0 */
 function yawOf(face) {
@@ -106,11 +117,12 @@ async function finish() {
   running = false;
   updateSteps();
   closeCamera?.();
-  await people.add({ name, group, descriptors: samples, createdAt: new Date().toISOString() });
+  await people.add({ name, group, floors, descriptors: samples, createdAt: new Date().toISOString() });
   $('captureCard').hidden = true;
   $('doneCard').hidden = false;
   $('doneTitle').textContent = `${name} 등록 완료`;
-  $('doneText').textContent = `${group === '허가' ? '허가' : '비허가'}로 등록했습니다. 정면·양옆 얼굴 수치 ${samples.length}개를 이 브라우저에 저장했습니다.`;
+  $('doneText').textContent = `${group === '허가' ? `허가(${floorsText(floors)})` : '비허가'}로 등록했습니다. `
+    + `정면·양옆 얼굴 수치 ${samples.length}개를 이 브라우저에 저장했습니다.`;
 }
 
 function reset() {
@@ -127,8 +139,10 @@ function reset() {
 $('startReg').addEventListener('click', async () => {
   name = $('regName').value.trim();
   group = $('regGroup').value;
+  floors = checkedFloors();
   $('error').textContent = '';
   if (!name) { $('formMsg').textContent = '이름을 입력하세요.'; $('formMsg').className = 'msg err'; return; }
+  if (!floors.length) { $('formMsg').textContent = '출입 허가 층을 하나 이상 선택하세요.'; $('formMsg').className = 'msg err'; return; }
   $('formMsg').textContent = '';
   $('startReg').disabled = true;
   $('formCard').hidden = true;

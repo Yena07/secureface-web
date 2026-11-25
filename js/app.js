@@ -8,6 +8,7 @@ import { createRecorder } from './recorder.js';
 import { openCamera } from './camera.js';
 import { publicKeys } from './keys.js';
 import { people, events } from './db.js';
+import { FLOORS, DAYS, DEFAULTS, checkTime, checkWork, effective, evaluate, floorsText, loadSettings, saveSettings } from './access.js';
 
 const $ = (id) => document.getElementById(id);
 const video = $('source');
@@ -24,6 +25,7 @@ const alertTracker = createAlertTracker();
 const recorder = createRecorder();
 let gallery = [];
 let tracks = [];
+let access = structuredClone(DEFAULTS);   // 출입 통제 설정 (loadSettings로 덮어씀)
 let recogBusy = false;
 let fps = 0, lastFrameAt = 0, detectMs = 0, recogMs = 0;
 
@@ -41,11 +43,12 @@ async function loadModels() {
 }
 
 // ── 얼굴 판정 ─────────────────────────────────────────────────────────
-// 암호화 집단: 등록자로 인식 → 내부인, 미등록으로 확정 → 외부인, 아직 확인 중 → 전체 키로만 복원
-function judge(track) {
+// 출입 판정(표시·경고): 미등록 → 비허가 등록 → 근무시간 외 → N층 출입금지 (access.js)
+// 암호화 집단은 인식 결과만 따른다: 등록자로 인식 → 내부인, 미등록으로 확정 → 외부인,
+// 아직 확인 중 → 전체 키로만 복원. 출입이 거부된 등록자도 내부인 키로 복원할 수 있다.
+function judge(track, env) {
   const { decided, person } = identityOf(track);
-  const allowed = !!person && person.group === '허가';
-  const reason = !decided ? '' : person ? (allowed ? '' : '비허가 등록') : '미등록';
+  const { allowed, reason } = decided ? evaluate(person, env) : { allowed: false, reason: '' };
   const group = !decided ? 'master' : person ? 'internal' : 'external';
   return { id: track.id, box: track.box, held: track.held, decided, person, allowed, reason, group };
 }
@@ -110,7 +113,9 @@ function renderFrame() {
     const detections = detector.detect(video, now);
     detectMs = avg(detectMs, performance.now() - now);
     tracks = tracker.update(detections, now);
-    const faces = tracks.map(judge).map((f) => ({ ...f, box: expandBox(f.box, BOX_EXPAND, canvas.width, canvas.height) }));
+    const env = effective(access);
+    const faces = tracks.map((t) => judge(t, env))
+      .map((f) => ({ ...f, box: expandBox(f.box, BOX_EXPAND, canvas.width, canvas.height) }));
 
     // 원본 프레임을 그린 직후 같은 작업 안에서 얼굴을 가린다. 브라우저는 이 작업이 끝난 뒤에
     // 화면을 그리므로, 가리기 전의 원본이 화면에 나타나지 않는다.
@@ -185,7 +190,17 @@ async function loadGallery() {
     const meta = document.createElement('span');
     meta.className = 'badge ' + (p.group === '허가' ? 'ok' : 'bad');
     meta.textContent = p.group;
-    info.append(name, ' ', meta);
+    const floors = document.createElement('div');
+    floors.className = 'hint';
+    floors.textContent = p.group === '허가' ? `출입 허가: ${floorsText(p.floors)}` : '모든 층 출입 불가';
+    info.append(name, ' ', meta, floors);
+    const actions = document.createElement('div');
+    actions.className = 'row-actions';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'btn small';
+    edit.textContent = '층 수정';
+    edit.addEventListener('click', () => openFloorModal(p));
     const del = document.createElement('button');
     del.type = 'button';
     del.className = 'btn small';
@@ -196,10 +211,129 @@ async function loadGallery() {
       await loadGallery();
       tracks.forEach((t) => { t.votes = []; });
     });
-    li.append(info, del);
+    actions.append(edit, del);
+    li.append(info, actions);
     list.append(li);
   }
 }
+
+// ── 등록자 출입 허가 층 수정 ──────────────────────────────────────────
+let editing = null;
+function openFloorModal(person) {
+  editing = person;
+  $('floorName').textContent = person.name;
+  $('floorMsg').textContent = '';
+  const box = $('floorEditChecks');
+  box.replaceChildren();
+  const current = person.floors?.length ? person.floors : FLOORS;
+  for (const f of FLOORS) {
+    const label = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox'; input.value = f; input.checked = current.includes(f);
+    label.append(input, ` ${f}층`);
+    box.append(label);
+  }
+  $('floorModal').hidden = false;
+}
+$('floorCancel').addEventListener('click', () => { $('floorModal').hidden = true; });
+$('floorSave').addEventListener('click', async () => {
+  const floors = [...document.querySelectorAll('#floorEditChecks input:checked')].map((b) => Number(b.value));
+  if (!floors.length) { $('floorMsg').textContent = '출입 허가 층을 하나 이상 선택하세요.'; return; }
+  await people.put({ ...editing, floors });
+  $('floorModal').hidden = true;
+  await loadGallery();
+  // 인식 결과(표)는 사람 객체를 가리키므로 새 정보로 바꿔 끼운다
+  const byId = new Map(gallery.map((p) => [p.id, p]));
+  tracks.forEach((t) => { t.votes = t.votes.map((v) => (v ? byId.get(v.id) ?? null : v)); });
+});
+
+// ── 관제 상황 시뮬레이션 · 근무시간 ─────────────────────────────────────
+// 시연 모드가 켜져 있는 동안에는 입력칸을 저장된 값으로 덮어쓰지 않는다 (고치던 값이 되돌아가지 않게).
+let simOn = false, simDirty = false;
+const workDayButtons = DAYS.map((d, i) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'day'; b.textContent = d; b.dataset.day = i;
+  b.addEventListener('click', () => b.classList.toggle('on'));
+  $('workDays').append(b);
+  return b;
+});
+DAYS.forEach((d, i) => $('simDay').append(new Option(`${d}요일`, i)));
+for (const sel of ['simFloor', 'cameraFloor']) FLOORS.forEach((f) => $(sel).append(new Option(`${f}층`, f)));
+
+function fillSimFields() {
+  $('simDay').value = access.day;
+  $('simTime').value = access.time;
+  $('simFloor').value = access.floor;
+}
+function fillWorkFields() {
+  workDayButtons.forEach((b, i) => b.classList.toggle('on', access.work.days.includes(i)));
+  $('workStart').value = access.work.start;
+  $('workEnd').value = access.work.end;
+  $('cameraFloor').value = access.cameraFloor;
+}
+
+function renderAccess() {
+  const env = effective(access);
+  $('simSwitch').classList.toggle('on', simOn);
+  $('simSwitch').setAttribute('aria-checked', String(simOn));
+  $('simLabel').textContent = `시연 모드 ${simOn ? 'ON' : 'OFF'}`;
+  ['simDay', 'simTime', 'simFloor', 'simApply'].forEach((id) => { $(id).disabled = !simOn; });
+  $('modePill').className = 'mode-pill' + (access.demo ? '' : ' off');
+  $('modePill').textContent = access.demo ? '시연 모드 적용 중' : '실제 환경 기준';
+  $('scenario').classList.toggle('active-sim', access.demo);
+  $('simMode').textContent = access.demo ? '◉ 시연 환경 적용' : '● 실제 환경';
+  let context = `${DAYS[env.day]}요일 · ${env.time} · ${env.floor}층`;
+  if (simOn && (simDirty || !access.demo)) context += '  (변경 사항은 [이 상황 적용]을 눌러야 반영됩니다)';
+  $('simContext').textContent = context;
+  const w = access.work;
+  const days = w.days.join(',') === '0,1,2,3,4' ? '평일' : w.days.map((d) => DAYS[d]).join('·');
+  $('simRule').className = env.afterHours ? 'deny' : 'ok';
+  $('simRule').textContent = env.afterHours
+    ? `근무시간 외 (${days} ${w.start}~${w.end} 밖) · 등록자도 전원 비허가`
+    : `근무시간 (${days} ${w.start}~${w.end}) · 등록 시 허가한 층만 출입 허가`;
+}
+
+async function applyAccess(changes) {
+  access = { ...access, ...changes };
+  await saveSettings(access);
+  renderAccess();
+}
+
+$('simSwitch').addEventListener('click', async () => {
+  simOn = !simOn;
+  if (simOn) { simDirty = true; fillSimFields(); renderAccess(); }
+  else { simDirty = false; await applyAccess({ demo: false }); }
+});
+for (const id of ['simDay', 'simTime', 'simFloor']) {
+  for (const type of ['input', 'change']) $(id).addEventListener(type, () => { simDirty = true; renderAccess(); });
+}
+$('simApply').addEventListener('click', async () => {
+  try {
+    await applyAccess({ demo: true, day: Number($('simDay').value), time: checkTime($('simTime').value), floor: Number($('simFloor').value) });
+    simDirty = false;
+    renderAccess();
+  } catch (err) { $('simContext').textContent = err.message; }
+});
+$('simReset').addEventListener('click', async () => {
+  simOn = false; simDirty = false;
+  // 시연 상황만 기본값으로. 근무시간과 카메라 위치는 그대로 둔다.
+  await applyAccess({ demo: DEFAULTS.demo, day: DEFAULTS.day, time: DEFAULTS.time, floor: DEFAULTS.floor });
+  fillSimFields();
+});
+$('workSave').addEventListener('click', async () => {
+  const msg = $('workMsg');
+  try {
+    const work = checkWork({
+      days: workDayButtons.filter((b) => b.classList.contains('on')).map((b) => Number(b.dataset.day)),
+      start: $('workStart').value, end: $('workEnd').value,
+    });
+    await applyAccess({ work, cameraFloor: Number($('cameraFloor').value) });
+    msg.className = 'msg ok'; msg.textContent = '저장되었습니다';
+  } catch (err) {
+    msg.className = 'msg err'; msg.textContent = err.message;
+  }
+});
+setInterval(renderAccess, 1000);   // 실제 시각이 근무시간 경계를 넘으면 표시도 바뀌도록
 
 // ── 감지 이력 ─────────────────────────────────────────────────────────
 async function recordAlerts(faces) {
@@ -269,5 +403,12 @@ function showAlert(count, time, reasons) {
 $('alertConfirm').addEventListener('click', () => { overlay.hidden = true; });
 
 publicKeys().then((pub) => { $('keyNotice').hidden = !!pub; });
+loadSettings().then((s) => {
+  access = s;
+  simOn = s.demo;
+  fillSimFields();
+  fillWorkFields();
+  renderAccess();
+});
 loadGallery();
 loadEvents();

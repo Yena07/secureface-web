@@ -187,3 +187,50 @@ a.btn { text-decoration: none; justify-content: center; }
   .steps { flex-direction: column; }
   .instruction { font-size: 16px; }
 }
+
+/* ── 관제 상황 시뮬레이션 (시간·층 출입 통제) ── */
+.scenario { background: #fff; border: 1px solid #E2E8F0; border-radius: 12px; overflow: hidden; }
+.scenario.active-sim { border-color: #C6DAFD; }
+.scenario-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid #E9EEF5; flex-wrap: wrap; }
+.scenario-title { font-weight: 700; font-size: 14px; }
+.scenario-title small { font-size: 11px; font-weight: 500; color: #8493AA; margin-left: 6px; }
+.scenario-actions { display: flex; align-items: center; gap: 8px; }
+.mode-pill { display: inline-flex; padding: 6px 10px; border-radius: 7px; font-weight: 700; font-size: 11px; border: 1px solid #FFDDA3; background: #FFF8E8; color: #A66B0A; }
+.mode-pill.off { color: #72829B; border-color: #DFE7F0; background: #fff; }
+.scenario-body { padding: 14px 16px; display: grid; grid-template-columns: 180px 1fr; gap: 20px; align-items: start; }
+.scenario-body.work-row { border-top: 1px solid #E9EEF5; }
+.work-title { font-weight: 650; font-size: 13px; padding-top: 6px; }
+.switchline { padding-top: 6px; display: flex; gap: 10px; align-items: center; font-weight: 650; font-size: 13px; }
+.switch { width: 39px; height: 23px; background: #CAD4E2; border-radius: 20px; position: relative; cursor: pointer; border: 0; padding: 0; flex-shrink: 0; }
+.switch::before { content: ''; position: absolute; background: #fff; width: 17px; height: 17px; left: 3px; top: 3px; border-radius: 50%; transition: .15s; box-shadow: 0 1px 3px rgba(0,0,0,.13); }
+.switch.on { background: #3B82F6; }
+.switch.on::before { left: 19px; }
+.smallnote { font-size: 11px; color: #8A9BB4; margin-top: 7px; line-height: 1.6; font-weight: 400; }
+.fields { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.fields .field { font-size: 11px; color: #637893; }
+.fields .field select, .fields .field input { height: 36px; min-width: 110px; padding: 0 10px; }
+.fields .field select:disabled, .fields .field input:disabled { background: #F6F8FA; color: #ADB7C5; }
+.fields .msg { align-self: center; }
+.days { display: flex; flex-wrap: wrap; gap: 5px; }
+.day { border: 1px solid #E0E8F3; background: #fff; border-radius: 7px; width: 34px; height: 36px; color: #8493A7; font-weight: 650; font-size: 13px; cursor: pointer; }
+.day.on { background: #EAF2FF; border-color: #9DC2FF; color: #3B82F6; }
+.statusline { border-top: 1px solid #E9EEF5; background: #FBFCFF; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 16px; color: #60748F; font-size: 12px; }
+.statusline strong { color: #2D4363; }
+.statusline .deny { color: #B91C1C; font-weight: 600; }
+.statusline .ok { color: #15803D; font-weight: 600; }
+.separator { height: 14px; width: 1px; background: #D7E2EE; }
+
+/* ── 층 체크박스 · 층 수정 창 ── */
+.floor-checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.floor-checks label { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid #E2E8F0; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; color: #334155; }
+.floor-checks label:has(input:checked) { border-color: #93C5FD; background: #EFF6FF; color: #1D4ED8; }
+.row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 900; background: rgba(15, 23, 42, .5); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal-backdrop[hidden] { display: none; }
+.modal { width: min(380px, 100%); background: #fff; border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+.modal h2 { margin: 0; font-size: 17px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+@media (max-width: 1000px) {
+  .scenario-body { grid-template-columns: 1fr; gap: 10px; }
+}
