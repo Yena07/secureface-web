@@ -30,17 +30,20 @@ export async function createDetector({ minConfidence = 0.5,
   let lastTs = -1;
   return {
     backend,
-    /** source: <video>, nowMs: 단조 증가 시각 → [{x1,y1,x2,y2,score}] (원본 픽셀 좌표) */
+    /** source: <video>, nowMs: 단조 증가 시각 → [{x1,y1,x2,y2,score,keypoints}] (원본 픽셀 좌표)
+     *  keypoints: [오른눈, 왼눈, 코끝, 입, 오른귀, 왼귀] (사람 기준 좌우) */
     detect(source, nowMs) {
       const ts = Math.max(nowMs, lastTs + 1);   // MediaPipe는 시각이 계속 증가해야 한다
       lastTs = ts;
       const result = detector.detectForVideo(source, ts);
+      const w = source.videoWidth, h = source.videoHeight;
       return result.detections.map((d) => {
         const b = d.boundingBox;
         return {
           x1: b.originX, y1: b.originY,
           x2: b.originX + b.width, y2: b.originY + b.height,
           score: d.categories?.[0]?.score ?? 0,
+          keypoints: (d.keypoints || []).map((k) => ({ x: k.x * w, y: k.y * h })),
         };
       });
     },

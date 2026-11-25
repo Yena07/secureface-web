@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>복원 · SecureFace-RX Web</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">SecureFace <span>-RX Web</span></div>
+    <nav class="nav">
+      <a href="index.html">실시간 모니터</a>
+      <a href="register.html">얼굴 등록</a>
+      <a href="restore.html" class="active">복원</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <h1 class="page-title">녹화 복원</h1>
+
+    <!-- 처음 한 번: 집단별 복원 키 설정 -->
+    <section class="card narrow-card" id="setupCard" hidden>
+      <h2>복원 키 설정</h2>
+      <p class="hint">녹화된 얼굴은 세 집단으로 나눠 각각 다른 키로 암호화합니다. 처음 한 번 키(비밀번호)를 정해 주세요.
+        <b>잊어버리면 그 집단의 얼굴은 복원할 수 없습니다.</b> 이 브라우저에만 저장되고 다시 바꿀 수 없습니다.</p>
+      <label class="field">전체 키 <span class="sub">모든 얼굴 복원</span>
+        <input type="password" id="pwMaster" autocomplete="new-password" minlength="4"></label>
+      <label class="field">내부인 키 <span class="sub">등록자로 인식된 얼굴만 복원</span>
+        <input type="password" id="pwInternal" autocomplete="new-password" minlength="4"></label>
+      <label class="field">외부인 키 <span class="sub">등록되지 않은 얼굴만 복원</span>
+        <input type="password" id="pwExternal" autocomplete="new-password" minlength="4"></label>
+      <button type="button" class="btn primary wide" id="setupKeys">복원 키 설정</button>
+      <p class="msg" id="setupMsg"></p>
+    </section>
+
+    <div class="restore-layout" id="restoreLayout" hidden>
+      <aside class="side">
+        <div class="side-head"><b>녹화 목록</b> <span class="hint" id="chunkCount"></span></div>
+        <ul class="list chunk-list" id="chunkList"></ul>
+      </aside>
+
+      <section class="viewer">
+        <div class="viewer-empty" id="viewerEmpty">왼쪽에서 녹화를 선택하세요.</div>
+        <div id="viewerBody" hidden>
+          <div class="viewer-head">
+            <div>
+              <div class="viewer-title" id="viewerTitle"></div>
+              <div class="hint" id="viewerMeta"></div>
+            </div>
+            <span class="badge" id="viewerMode"></span>
+          </div>
+          <div class="stage player-stage"><canvas id="player"></canvas></div>
+          <div class="player-controls">
+            <button type="button" class="btn small" id="playPause">일시정지</button>
+            <input type="range" id="seek" min="0" value="0" aria-label="재생 위치">
+            <span class="hint" id="timeLabel">0.0초</span>
+          </div>
+
+          <div class="card restore-card">
+            <div class="key-choice" role="radiogroup" aria-label="복원 키 종류">
+              <label><input type="radio" name="keyGroup" value="external" checked> 외부인</label>
+              <label><input type="radio" name="keyGroup" value="internal"> 내부인</label>
+              <label><input type="radio" name="keyGroup" value="master"> 전체</label>
+            </div>
+            <div class="key-row">
+              <input type="password" id="keyInput" placeholder="선택한 집단의 복원 키" autocomplete="off">
+              <button type="button" class="btn primary" id="restoreBtn">복원</button>
+              <button type="button" class="btn" id="blurBtn" hidden>블러로 되돌리기</button>
+            </div>
+            <p class="msg" id="restoreMsg"></p>
+          </div>
+          <button type="button" class="btn small danger-text" id="deleteChunk">이 녹화 삭제</button>
+        </div>
+      </section>
+    </div>
+    <p class="error" id="error" role="alert"></p>
+  </main>
+  <script type="module" src="js/restore.js"></script>
+</body>
+</html>

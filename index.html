@@ -9,15 +9,22 @@
 <body>
   <header class="topbar">
     <div class="brand">SecureFace <span>-RX Web</span></div>
-    <div class="privacy-note">모든 처리는 이 브라우저 안에서만 · 영상은 전송되지 않음</div>
+    <nav class="nav">
+      <a href="index.html" class="active">실시간 모니터</a>
+      <a href="register.html">얼굴 등록</a>
+      <a href="restore.html">복원</a>
+    </nav>
   </header>
 
   <main class="page">
+    <p class="privacy-note">모든 처리는 이 브라우저 안에서만 · 영상은 전송되지 않음</p>
+    <div class="notice" id="keyNotice" hidden>
+      복원 키가 아직 설정되지 않아 <b>녹화하지 않습니다.</b> 화면 블러와 경고는 동작합니다.
+      <a href="restore.html">복원 페이지에서 키 설정하기 →</a>
+    </div>
+
     <section class="controls">
       <button type="button" class="btn primary" id="startCamera">카메라 시작</button>
-      <label class="btn" for="videoFile">영상 파일로 테스트</label>
-      <input type="file" id="videoFile" accept="video/*" hidden>
-      <button type="button" class="btn" id="stop" disabled>정지</button>
       <label class="check"><input type="checkbox" id="showBoxes" checked> 얼굴 상자·라벨 표시</label>
     </section>
 
@@ -25,42 +32,27 @@
       <div class="stat"><div class="label">상태</div><div class="value" id="statState">대기</div></div>
       <div class="stat"><div class="label">얼굴</div><div class="value" id="statFaces">0</div></div>
       <div class="stat"><div class="label">비허가자</div><div class="value danger" id="statDenied">0</div></div>
-      <div class="stat"><div class="label">처리 속도</div><div class="value" id="statFps">-</div></div>
-      <div class="stat"><div class="label">탐지 / 인식 시간</div><div class="value" id="statMs">-</div></div>
+      <div class="stat"><div class="label">녹화</div><div class="value" id="statRec">꺼짐</div></div>
+      <div class="stat"><div class="label">처리 속도 · 탐지/인식</div><div class="value small" id="statPerf">-</div></div>
     </section>
 
     <div class="layout">
       <section class="stage">
         <canvas id="view" aria-label="익명화된 영상"></canvas>
         <div class="placeholder" id="placeholder">
-          <b>카메라 시작</b>을 누르거나 <b>영상 파일</b>을 선택하세요.<br>
+          <b>카메라 시작</b>을 누르세요.<br>
           얼굴은 화면에 그려지기 전에 블러 처리됩니다.
         </div>
       </section>
 
       <aside class="side">
         <nav class="tabs" role="tablist">
-          <button type="button" class="tab active" data-tab="register" role="tab">얼굴 등록</button>
-          <button type="button" class="tab" data-tab="people" role="tab">등록자 <span id="peopleCount">0</span></button>
+          <button type="button" class="tab active" data-tab="people" role="tab">등록자 <span id="peopleCount">0</span></button>
           <button type="button" class="tab" data-tab="events" role="tab">감지 이력</button>
         </nav>
 
-        <div class="tab-panel" id="tab-register">
-          <p class="hint">카메라(또는 영상)를 켠 상태에서, 등록할 사람만 화면에 나오게 한 뒤 촬영을 누르세요.
-            촬영하는 몇 초 동안 고개를 천천히 좌우로 돌리면 인식이 더 잘 됩니다. 얼굴 사진은 저장하지 않고 인식용 수치만 저장합니다.</p>
-          <label class="field">이름 <input type="text" id="regName" maxlength="30" placeholder="예: 홍길동"></label>
-          <label class="field">구분
-            <select id="regGroup">
-              <option value="허가">허가</option>
-              <option value="비허가">비허가 (등록은 하지만 출입 불가)</option>
-            </select>
-          </label>
-          <button type="button" class="btn primary wide" id="regCapture">등록 촬영</button>
-          <div class="progress" id="regProgress" hidden><div id="regBar"></div></div>
-          <p class="msg" id="regMsg"></p>
-        </div>
-
-        <div class="tab-panel" id="tab-people" hidden>
+        <div class="tab-panel" id="tab-people">
+          <a class="btn primary wide" href="register.html">얼굴 등록하기 →</a>
           <ul class="list" id="peopleList"></ul>
         </div>
 

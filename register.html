@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>얼굴 등록 · SecureFace-RX Web</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">SecureFace <span>-RX Web</span></div>
+    <nav class="nav">
+      <a href="index.html">실시간 모니터</a>
+      <a href="register.html" class="active">얼굴 등록</a>
+      <a href="restore.html">복원</a>
+    </nav>
+  </header>
+
+  <main class="page narrow">
+    <h1 class="page-title">얼굴 등록</h1>
+
+    <section class="card" id="formCard">
+      <p class="hint">등록할 사람 혼자 카메라 앞에 앉아 주세요. 안내에 따라 <b>정면 → 한쪽 → 반대쪽</b>으로 고개를 천천히 돌리면
+        여러 각도의 얼굴 수치를 저장합니다. 얼굴 사진은 저장하지 않습니다.</p>
+      <div class="form-row">
+        <label class="field">이름 <input type="text" id="regName" maxlength="30" placeholder="예: 홍길동"></label>
+        <label class="field">구분
+          <select id="regGroup">
+            <option value="허가">허가</option>
+            <option value="비허가">비허가 (등록은 하지만 출입 불가)</option>
+          </select>
+        </label>
+      </div>
+      <button type="button" class="btn primary wide big" id="startReg">등록 시작</button>
+      <p class="msg" id="formMsg"></p>
+    </section>
+
+    <section class="card capture" id="captureCard" hidden>
+      <div class="steps" id="steps">
+        <div class="step" data-step="0"><span>1</span>정면</div>
+        <div class="step" data-step="1"><span>2</span>한쪽으로</div>
+        <div class="step" data-step="2"><span>3</span>반대쪽으로</div>
+      </div>
+      <div class="reg-stage">
+        <canvas id="regView" aria-label="등록용 카메라 화면"></canvas>
+        <div class="guide-oval" id="guideOval"></div>
+        <div class="instruction" id="instruction">카메라를 여는 중…</div>
+      </div>
+      <div class="progress"><div id="regBar"></div></div>
+      <div class="capture-foot">
+        <span class="hint" id="poseHint"></span>
+        <button type="button" class="btn" id="cancelReg">취소</button>
+      </div>
+      <p class="hint small-note">이 화면은 본인이 얼굴 위치를 맞출 수 있도록 블러 없이 보여 주며, 아무것도 녹화하지 않습니다.</p>
+    </section>
+
+    <section class="card done" id="doneCard" hidden>
+      <div class="done-icon" aria-hidden="true">✓</div>
+      <h2 id="doneTitle">등록 완료</h2>
+      <p class="hint" id="doneText"></p>
+      <div class="done-actions">
+        <a class="btn primary" href="index.html">실시간 모니터로 이동</a>
+        <button type="button" class="btn" id="again">다른 사람 등록</button>
+      </div>
+    </section>
+    <p class="error" id="error" role="alert"></p>
+  </main>
+
+  <video id="source" muted playsinline hidden></video>
+  <script type="module" src="js/register.js"></script>
+</body>
+</html>
