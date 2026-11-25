@@ -1,5 +1,5 @@
 // 얼굴 등록: 정면 → 한쪽 → 반대쪽 순서로 고개를 돌리며 각도별 얼굴 수치를 모은다.
-import { createDetector } from './detector.js';
+import { createDetector, DET_SIZE } from './detector.js';
 import { createRecognizer } from './recognizer.js';
 import { openCamera } from './camera.js';
 import { people } from './db.js';
@@ -11,8 +11,10 @@ const canvas = $('regView');
 const ctx = canvas.getContext('2d');
 
 const SAMPLES_PER_STEP = 2;
-const FRONT_MAX = 0.12;   // |고개 방향| 이 이하면 정면
-const SIDE_MIN = 0.28;    // |고개 방향| 이 이상이면 옆으로 돌린 것
+// SCRFD의 코끝 키포인트는 고개를 돌려도 가운데 쪽으로 덜 움직여 값의 범위가 작다
+// (시연 영상에서 |값| 중앙값 0.07, 최대 0.18). 그 범위에 맞춘 기준이다.
+const FRONT_MAX = 0.08;   // |고개 방향| 이 이하면 정면
+const SIDE_MIN = 0.15;    // |고개 방향| 이 이상이면 옆으로 돌린 것
 const SAMPLE_GAP_MS = 350;
 
 let detector = null, recognizer = null, closeCamera = null;
@@ -59,17 +61,24 @@ function updateSteps() {
   $('regBar').style.width = `${(samples.length / (SAMPLES_PER_STEP * 3)) * 100}%`;
 }
 
-function render() {
+// 탐지가 비동기라, 탐지·화면·인식이 같은 그림을 쓰도록 프레임 사본을 둔다.
+const frame = document.createElement('canvas');
+const frameCtx = frame.getContext('2d');
+
+async function render() {
   if (!running) return;
   if (video.readyState >= 2 && video.videoWidth) {
     const w = video.videoWidth, h = video.videoHeight;
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    if (frame.width !== w || frame.height !== h) { frame.width = w; frame.height = h; }
+    frameCtx.drawImage(video, 0, 0, w, h);
+    const faces = await detector.detect(frame);
+    if (!running) return;
     // 거울처럼 좌우를 뒤집어 보여 준다 (본인이 맞추기 쉽도록). 판정은 원본 좌표로 한다.
     ctx.setTransform(-1, 0, 0, 1, w, 0);
-    ctx.drawImage(video, 0, 0, w, h);
+    ctx.drawImage(frame, 0, 0);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-    const faces = detector.detect(video, performance.now());
     let hint = '', ok = false;
     if (faces.length === 0) hint = '얼굴이 보이지 않습니다. 카메라를 바라봐 주세요.';
     else if (faces.length > 1) hint = `화면에 한 사람만 나오게 해 주세요 (지금 ${faces.length}명).`;
@@ -96,7 +105,7 @@ async function trySample() {
   const box = faceBox;
   const yaw = yawOf(box);
   try {
-    const d = await recognizer.describe(video, box);
+    const d = await recognizer.describe(frame, box);
     if (!d || !running) return;
     samples.push(d);
     stepCount++;
@@ -150,7 +159,7 @@ $('startReg').addEventListener('click', async () => {
   $('instruction').textContent = '모델을 불러오는 중…';
   updateSteps();
   try {
-    if (!detector) [detector, recognizer] = await Promise.all([createDetector(), createRecognizer()]);
+    if (!detector) [detector, recognizer] = await Promise.all([createDetector({ size: DET_SIZE }), createRecognizer()]);
     $('instruction').textContent = '카메라를 여는 중…';
     closeCamera = await openCamera(video);
   } catch (err) {

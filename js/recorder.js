@@ -52,25 +52,26 @@ export function createRecorder() {
     start(publicKeys) { pub = publicKeys; },
 
     /** 화면 처리 루프에서 매 프레임 부른다. faces: [{box(원본 좌표, 넓힌 상자), group}] */
-    capture(video, faces, now) {
+    capture(source, faces, now) {
       if (!pub || now - lastCapture < 1000 / RECORD_FPS) return;
       if (pending >= MAX_PENDING) { stats.dropped++; return; }
       lastCapture = now;
-      const scale = Math.min(1, RECORD_WIDTH / video.videoWidth);
-      const w = Math.round(video.videoWidth * scale), h = Math.round(video.videoHeight * scale);
+      const sw = source.videoWidth || source.width, sh = source.videoHeight || source.height;
+      const scale = Math.min(1, RECORD_WIDTH / sw);
+      const w = Math.round(sw * scale), h = Math.round(sh * scale);
 
       // 블러된 프레임과 원본 얼굴 조각을 지금 프레임에서 바로 만든다 (toBlob은 호출 순간의 그림을 복사한다).
       if (view.width !== w || view.height !== h) { view.width = w; view.height = h; }
-      viewCtx.drawImage(video, 0, 0, w, h);
+      viewCtx.drawImage(source, 0, 0, w, h);
       const boxes = faces.map((f) => {
         const b = scaleBox(f.box, scale);
         return { x1: Math.floor(b.x1), y1: Math.floor(b.y1), x2: Math.ceil(b.x2), y2: Math.ceil(b.y2) };
       });
-      boxes.forEach((b) => blurRegion(viewCtx, video, b, scale));
+      boxes.forEach((b) => blurRegion(viewCtx, source, b, scale));
       const imageBlob = canvasBlob(view, 0.75);
       const cropBlobs = boxes.map((b) => {
         crop.width = Math.max(1, b.x2 - b.x1); crop.height = Math.max(1, b.y2 - b.y1);
-        cropCtx.drawImage(video, b.x1 / scale, b.y1 / scale, crop.width / scale, crop.height / scale, 0, 0, crop.width, crop.height);
+        cropCtx.drawImage(source, b.x1 / scale, b.y1 / scale, crop.width / scale, crop.height / scale, 0, 0, crop.width, crop.height);
         return canvasBlob(crop, 0.9);
       });
       const t = now;

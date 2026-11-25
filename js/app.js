@@ -1,6 +1,6 @@
 // 실시간 모니터: 카메라 → 탐지 → 인식 → 가우시안 블러 → 경고 · 녹화
-import { createDetector } from './detector.js';
-import { createRecognizer, bestMatch, MATCH_DISTANCE } from './recognizer.js';
+import { createDetector, DET_SIZE } from './detector.js';
+import { createRecognizer, bestMatch, MATCH_SIMILARITY } from './recognizer.js';
 import { blurRegion, expandBox } from './anonymize.js';
 import { createTracker, identityOf } from './tracker.js';
 import { createAlertTracker } from './alerts.js';
@@ -14,6 +14,10 @@ const $ = (id) => document.getElementById(id);
 const video = $('source');
 const canvas = $('view');
 const ctx = canvas.getContext('2d');
+// 처리 중인 한 프레임의 사본. 탐지가 비동기라 그사이 영상이 넘어가도, 탐지·블러·녹화가
+// 모두 같은 그림을 쓰도록 한다 (화면에는 그리지 않음).
+const frame = document.createElement('canvas');
+const frameCtx = frame.getContext('2d');
 
 const BOX_EXPAND = 0.15;   // 머리카락·턱까지 가리도록 탐지 상자를 넓히는 비율
 const RECOG_MS = 500;      // 얼굴 하나를 다시 인식하는 간격
@@ -35,7 +39,7 @@ const avg = (prev, value) => (prev ? prev * 0.9 + value * 0.1 : value);
 
 async function loadModels() {
   setState('모델 불러오는 중');
-  const [det, rec] = await Promise.allSettled([createDetector(), createRecognizer()]);
+  const [det, rec] = await Promise.allSettled([createDetector({ size: DET_SIZE }), createRecognizer()]);
   if (det.status === 'rejected') throw det.reason;
   detector = det.value;
   if (rec.status === 'fulfilled') recognizer = rec.value;
@@ -88,11 +92,12 @@ function scheduleRecognition(now) {
   if (!gallery.length) { pushVote(due, null); return; }   // 등록자가 없으면 모두 미등록
   recogBusy = true;
   const t0 = performance.now();
-  recognizer.describe(video, due.box).then((descriptor) => {
+  // describe는 호출하는 순간 frame에서 얼굴을 잘라 가므로 다음 프레임이 frame을 덮어써도 된다.
+  recognizer.describe(frame, due.box).then((descriptor) => {
     recogMs = avg(recogMs, performance.now() - t0);
     const match = descriptor && bestMatch(descriptor, gallery);
-    // 얼굴을 다시 찾지 못한 경우도 '미등록' 한 표로 센다 (확인할 수 없으면 허가하지 않는다).
-    pushVote(due, match && match.distance < MATCH_DISTANCE ? match.person : null);
+    // 인식할 수 없는 얼굴도 '미등록' 한 표로 센다 (확인할 수 없으면 허가하지 않는다).
+    pushVote(due, match && match.similarity >= MATCH_SIMILARITY ? match.person : null);
   }).catch(() => {}).finally(() => { recogBusy = false; });
 }
 
@@ -102,28 +107,36 @@ function pushVote(track, person) {
 }
 
 // ── 프레임 처리 ───────────────────────────────────────────────────────
-function renderFrame() {
+async function renderFrame() {
   if (!running) return;
   if (video.readyState >= 2 && video.videoWidth) {
-    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-    }
+    const w = video.videoWidth, h = video.videoHeight;
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    if (frame.width !== w || frame.height !== h) { frame.width = w; frame.height = h; }
+    frameCtx.drawImage(video, 0, 0, w, h);   // 이 프레임의 사본 (화면에는 그리지 않음)
     const now = performance.now();
-    const detections = detector.detect(video, now);
+    let detections;
+    try {
+      detections = await detector.detect(frame);
+    } catch (err) {
+      showError('얼굴 탐지 오류: ' + (err.message || err));
+      scheduleNext();
+      return;
+    }
+    if (!running) return;
     detectMs = avg(detectMs, performance.now() - now);
     tracks = tracker.update(detections, now);
     const env = effective(access);
     const faces = tracks.map((t) => judge(t, env))
-      .map((f) => ({ ...f, box: expandBox(f.box, BOX_EXPAND, canvas.width, canvas.height) }));
+      .map((f) => ({ ...f, box: expandBox(f.box, BOX_EXPAND, w, h) }));
 
-    // 원본 프레임을 그린 직후 같은 작업 안에서 얼굴을 가린다. 브라우저는 이 작업이 끝난 뒤에
+    // 사본을 그린 직후 같은 작업 안에서 얼굴을 가린다. 브라우저는 이 작업이 끝난 뒤에
     // 화면을 그리므로, 가리기 전의 원본이 화면에 나타나지 않는다.
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    faces.forEach((f) => blurRegion(ctx, video, f.box));
+    ctx.drawImage(frame, 0, 0);
+    faces.forEach((f) => blurRegion(ctx, frame, f.box));
     if ($('showBoxes').checked) faces.forEach((f) => drawLabel(f.box, labelOf(f)));
 
-    recorder.capture(video, faces, now);
+    recorder.capture(frame, faces, now);
     const alerts = alertTracker.update(faces, now);
     if (alerts.length) recordAlerts(alerts);
     scheduleRecognition(now);
@@ -171,18 +184,23 @@ $('startCamera').addEventListener('click', async () => {
 addEventListener('pagehide', () => { recorder.stop(); });
 
 // ── 등록자 목록 ────────────────────────────────────────────────────────
+// ArcFace 512차원 수치만 비교에 쓴다. 이전 인식 모델(128차원)로 등록한 사람은 다시 등록해야 한다.
+const ARCFACE_DIM = 512;
+const usable = (p) => p.descriptors?.[0]?.length === ARCFACE_DIM;
+
 async function loadGallery() {
-  gallery = await people.all();
-  $('peopleCount').textContent = gallery.length;
+  const all = await people.all();
+  gallery = all.filter(usable);
+  $('peopleCount').textContent = all.length;
   const list = $('peopleList');
   list.replaceChildren();
-  if (!gallery.length) {
+  if (!all.length) {
     const li = document.createElement('li');
     li.className = 'empty';
     li.textContent = '등록된 사람이 없습니다.';
     list.append(li);
   }
-  for (const p of gallery) {
+  for (const p of all) {
     const li = document.createElement('li');
     const info = document.createElement('div');
     const name = document.createElement('b');
@@ -193,7 +211,14 @@ async function loadGallery() {
     const floors = document.createElement('div');
     floors.className = 'hint';
     floors.textContent = p.group === '허가' ? `출입 허가: ${floorsText(p.floors)}` : '모든 층 출입 불가';
-    info.append(name, ' ', meta, floors);
+    info.append(name, ' ', meta);
+    if (!usable(p)) {
+      const stale = document.createElement('span');
+      stale.className = 'badge bad';
+      stale.textContent = '재등록 필요';
+      info.append(' ', stale);
+    }
+    info.append(floors);
     const actions = document.createElement('div');
     actions.className = 'row-actions';
     const edit = document.createElement('button');
