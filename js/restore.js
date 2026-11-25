@@ -155,12 +155,8 @@ $('restoreBtn').addEventListener('click', async () => {
     opener = group;
     faceCache.clear();
     $('keyInput').value = '';
-    const opened = Object.keys(deks);
-    const count = opened.reduce((n, g) => n + (current.faces[g] || 0), 0);
-    msg.className = 'msg ok';
-    msg.textContent = group === 'master'
-      ? `전체 키로 모든 얼굴(${count}건)을 복원했습니다.`
-      : `${GROUP_LABEL[group]} 키로 ${GROUP_LABEL[group]} 얼굴(${count}건)만 복원했습니다. 다른 얼굴은 블러 그대로입니다.`;
+    msg.className = 'msg';
+    msg.textContent = '';
     $('viewerMode').textContent = `${GROUP_LABEL[group]} 복원 중`;
     $('viewerMode').className = 'badge bad';
     $('blurBtn').hidden = false;
