@@ -14,6 +14,18 @@ export function iou(a, b) {
   return union > 0 ? inter / union : 0;
 }
 
+/** 겹침이 작아도 크기가 비슷하고 중심이 가까우면 같은 얼굴로 본다
+ *  (라즈베리파이 버전 _hold_detector_dropouts의 same_region과 같은 기준).
+ *  처리 속도가 느린 노트북에서는 프레임 사이에 얼굴이 많이 움직여 겹침만으로는 이어지지 않는다. */
+function sameRegion(a, b) {
+  const aw = a.x2 - a.x1, ah = a.y2 - a.y1, bw = b.x2 - b.x1, bh = b.y2 - b.y1;
+  if (Math.min(aw, ah, bw, bh) <= 0) return false;
+  const sizeRatio = Math.min(aw * ah, bw * bh) / Math.max(aw * ah, bw * bh);
+  const dx = (a.x1 + a.x2 - b.x1 - b.x2) / 2, dy = (a.y1 + a.y2 - b.y1 - b.y2) / 2;
+  const radius = 0.45 * Math.max(aw, ah, bw, bh);
+  return sizeRatio >= 0.4 && dx * dx + dy * dy <= radius * radius;
+}
+
 export function createTracker({ holdMs = 800, iouThreshold = 0.3 } = {}) {
   let tracks = [];
   let nextId = 1;
@@ -27,6 +39,7 @@ export function createTracker({ holdMs = 800, iouThreshold = 0.3 } = {}) {
           const v = iou(det, t.box);
           if (v >= bestIou) { best = t; bestIou = v; }
         }
+        if (!best) best = tracks.find((t) => !matched.has(t) && sameRegion(det, t.box)) || null;
         if (best) {
           Object.assign(best, { box: det, lastSeen: now, held: false });
           matched.add(best);
